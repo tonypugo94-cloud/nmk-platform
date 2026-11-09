@@ -110,6 +110,11 @@ export const messaging: ServiceDefinition = {
       const n = (await db.query(`select messaging.enqueue($1, 'viewing_invite', $2::jsonb) as n`, [ev.payload.orderId, JSON.stringify({ until: ruDate(until) })])).rows[0].n;
       if (!n) await publish(db, "callback.requested", ev.key, { orderId: ev.payload.orderId, reason: "Клиент не подключён к боту — пригласите на просмотр по телефону" });
     },
+    "analytics.digest_ready": async (ev, { db }) => {
+      const { rows: [r] } = await db.query(`select value->'ownerChats' as chats from core.settings where key = 'messaging'`);
+      for (const c of (r?.chats ?? []) as { channel: string; chatId: string }[])
+        await db.query(`select messaging.enqueue_direct($1, $2, 'digest', $3::jsonb)`, [c.channel, c.chatId, JSON.stringify({ text: ev.payload.text })]);
+    },
     "installation.rescheduled": async (ev, { db }) => { await db.query(`select messaging.cancel_pending($1, 'reminder')`, [ev.payload.orderId]); },
     "installation.cancelled": async (ev, { db }) => { await db.query(`select messaging.cancel_pending($1, 'reminder')`, [ev.payload.orderId]); },
   },
