@@ -260,6 +260,13 @@ language sql security definer set search_path = planning, public as $$
   update planning.assignments set active = false where order_id = p_order and active
 $$;
 
+-- Назначение заказа для других модулей (без доступа к таблицам планирования).
+create or replace function planning.order_assignment(p_order uuid) returns table (day date, confirm_status text, slot_id uuid)
+language sql stable security definer set search_path = planning, public as $$
+  select s.day, a.confirm_status, a.slot_id from planning.assignments a join planning.slots s on s.id = a.slot_id
+  where a.order_id = p_order and a.active
+$$;
+
 -- Роли сервисов
 select core.ensure_service_role('svc_planning');
 grant usage on schema planning to svc_planning;

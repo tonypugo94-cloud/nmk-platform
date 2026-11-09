@@ -11,6 +11,9 @@ importers:
       '@nmk/accounting':
         specifier: workspace:*
         version: link:packages/accounting
+      '@nmk/bots':
+        specifier: workspace:*
+        version: link:packages/bots
       '@nmk/db':
         specifier: workspace:*
         version: link:packages/db
@@ -73,6 +76,12 @@ importers:
 
   packages/accounting: {}
 
+  packages/bots:
+    dependencies:
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/db: {}
 
   packages/shared:
@@ -93,11 +102,35 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
+  services/bot-max:
+    dependencies:
+      '@nmk/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  services/bot-vk:
+    dependencies:
+      '@nmk/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
   services/housekeeping:
     dependencies:
       '@nmk/accounting':
         specifier: workspace:*
         version: link:../../packages/accounting
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  services/messaging:
+    dependencies:
       '@nmk/shared':
         specifier: workspace:*
         version: link:../../packages/shared

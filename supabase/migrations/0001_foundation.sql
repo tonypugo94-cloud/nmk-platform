@@ -166,6 +166,13 @@ create policy user_roles_admin on core.user_roles for all to authenticated using
 create policy modules_read on core.app_modules for select to authenticated using (true);
 create policy modules_admin on core.app_modules for update to authenticated using (core.has_role('admin')) with check (core.has_role('admin'));
 
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'nmk_services') then create role nmk_services nologin; end if;
+end $$;
+create policy settings_services on core.settings for select to nmk_services using (true);
+grant usage on schema core to nmk_services;
+grant select on core.settings to nmk_services;
+
 create policy settings_read on core.settings for select to authenticated using (core.is_staff());
 create policy settings_admin on core.settings for all to authenticated using (core.has_role('admin')) with check (core.has_role('admin'));
 

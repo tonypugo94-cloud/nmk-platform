@@ -21,6 +21,7 @@
     "zod": "^3.24.1",
     "@nmk/shared": "workspace:*",
     "@nmk/accounting": "workspace:*",
-    "@nmk/db": "workspace:*"
+    "@nmk/db": "workspace:*",
+    "@nmk/bots": "workspace:*"
   }
 }

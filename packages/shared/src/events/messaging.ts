@@ -13,3 +13,9 @@ export const MessagingEvents = {
   messageFailed: defineEvent("message.failed", z.object({ messageId: uuid, orderId: uuid.nullable(), error: z.string() })),
   digestReady: defineEvent("analytics.digest_ready", z.object({ text: z.string(), week: z.string() })),
 } as const;
+
+export const MessagingInternalEvents = {
+  inbound: defineEvent("messaging.inbound", z.object({
+    inboundId: z.number(), channel: z.string(), chatId: z.string(), kind: z.enum(["start", "text", "button", "delivered", "read"]), data: z.any(),
+  })),
+} as const;
