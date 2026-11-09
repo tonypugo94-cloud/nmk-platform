@@ -1,16 +1,20 @@
-# Прикладные сервисы НМК. База и Supabase поднимаются официальным docker-compose
-# self-hosted Supabase (infra/supabase/, см. docs/deploy.md) и подключаются через include.
+# Прикладные сервисы НМК поверх self-hosted Supabase.
+#   1) infra/supabase/ — официальный docker-compose Supabase (см. docs/deploy.md), он поднимает db, auth, rest, storage, realtime, kong.
+#      В его .env обязательно: PGRST_DB_SCHEMAS=public,storage,graphql_public,core,bus,integration,tracking,workload,warehouse,procurement,planning,weather,messaging,crew,autoplan,piecework,analytics
+#   2) этот файл подключает его через include и добавляет наши сервисы.
 # Каждый сервис — отдельный контейнер со своей ролью в БД: падение одного не трогает остальные.
 
 include:
   - path: ./supabase/docker-compose.yml
 
 x-service: &service
-  build: { context: .., dockerfile: infra/Dockerfile.service }
   restart: unless-stopped
   depends_on: { db: { condition: service_healthy } }
   deploy: { resources: { limits: { cpus: "0.5", memory: 256M } } }
   logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+x-db: &db
+  DATABASE_URL_HOST: db:5432
 
 services:
   accounting-sync:
@@ -24,11 +28,123 @@ services:
       ONEC_FIELDS: ${ONEC_FIELDS:-}
       SYNC_EVERY_MS: ${SYNC_EVERY_MS:-120000}
 
-  # Следующие сервисы добавляются по мере этапов: planning, messaging, bot-max, bot-vk,
-  # weather, procurement, tracking, workload, warehouse, crew, autoplanner, piecework, analytics.
+  accounting-writeback:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: accounting-writeback } }
+    environment:
+      DATABASE_URL: postgres://svc_accounting_writeback:${SVC_ACCOUNTING_WRITEBACK_PASSWORD}@db:5432/postgres
+      ONEC_HS_URL: ${ONEC_HS_URL:-}
+      ONEC_USER: ${ONEC_USER}
+      ONEC_PASSWORD: ${ONEC_PASSWORD}
 
-  ops-housekeeping:
+  tracking:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: tracking } }
+    environment: { DATABASE_URL: "postgres://svc_tracking:${SVC_TRACKING_PASSWORD}@db:5432/postgres" }
+
+  workload:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: workload } }
+    environment: { DATABASE_URL: "postgres://svc_workload:${SVC_WORKLOAD_PASSWORD}@db:5432/postgres" }
+
+  warehouse:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: warehouse } }
+    environment: { DATABASE_URL: "postgres://svc_warehouse:${SVC_WAREHOUSE_PASSWORD}@db:5432/postgres" }
+
+  procurement:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: procurement } }
+    environment: { DATABASE_URL: "postgres://svc_procurement:${SVC_PROCUREMENT_PASSWORD}@db:5432/postgres" }
+
+  planning:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: planning } }
+    environment: { DATABASE_URL: "postgres://svc_planning:${SVC_PLANNING_PASSWORD}@db:5432/postgres" }
+
+  weather:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: weather } }
+    environment:
+      DATABASE_URL: postgres://svc_weather:${SVC_WEATHER_PASSWORD}@db:5432/postgres
+      METEOPLAN_URL: ${METEOPLAN_URL}
+      METEOPLAN_TOKEN: ${METEOPLAN_TOKEN:-}
+
+  messaging:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: messaging } }
+    environment: { DATABASE_URL: "postgres://svc_messaging:${SVC_MESSAGING_PASSWORD}@db:5432/postgres" }
+
+  bot-max:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: bot-max } }
+    environment:
+      DATABASE_URL: postgres://svc_bot_max:${SVC_BOT_MAX_PASSWORD}@db:5432/postgres
+      MAX_TOKEN: ${MAX_TOKEN}
+      MAX_WEBHOOK_SECRET: ${MAX_WEBHOOK_SECRET}
+
+  bot-vk:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: bot-vk } }
+    environment:
+      DATABASE_URL: postgres://svc_bot_vk:${SVC_BOT_VK_PASSWORD}@db:5432/postgres
+      VK_TOKEN: ${VK_TOKEN}
+      VK_SECRET: ${VK_SECRET}
+      VK_CONFIRMATION: ${VK_CONFIRMATION}
+
+  autoplanner:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: autoplanner } }
+    environment: { DATABASE_URL: "postgres://svc_autoplanner:${SVC_AUTOPLANNER_PASSWORD}@db:5432/postgres" }
+
+  piecework:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: piecework } }
+    environment: { DATABASE_URL: "postgres://svc_piecework:${SVC_PIECEWORK_PASSWORD}@db:5432/postgres" }
+
+  analytics:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: analytics } }
+    environment: { DATABASE_URL: "postgres://svc_analytics:${SVC_ANALYTICS_PASSWORD}@db:5432/postgres" }
+
+  housekeeping:
     <<: *service
     build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: housekeeping } }
+    environment: { DATABASE_URL: "postgres://svc_housekeeping:${SVC_HOUSEKEEPING_PASSWORD}@db:5432/postgres" }
+
+  # Интерфейс и HTTPS. Вебхуки ботов: /hooks/max → bot-max, /hooks/vk → bot-vk. Supabase API — /rest, /auth, /storage, /realtime через kong.
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../apps/web-office/dist:/srv/web:ro
+      - caddy_data:/data
+    environment: { DOMAIN: "${DOMAIN}" }
+
+  # Бэкапы: ночной дамп в S3-совместимое хранилище в РФ (Yandex Object Storage, Selectel и т. п.).
+  backup:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
     environment:
-      DATABASE_URL: postgres://svc_housekeeping:${SVC_HOUSEKEEPING_PASSWORD}@db:5432/postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      S3_ENDPOINT: ${BACKUP_S3_ENDPOINT}
+      S3_BUCKET: ${BACKUP_S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${BACKUP_S3_KEY}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+    volumes: ["./backup:/backup:ro"]
+    entrypoint: ["/bin/sh", "/backup/loop.sh"]
+
+  # Мониторинг доступности сервисов (/health) с оповещением администратору.
+  uptime:
+    image: louislam/uptime-kuma:1.23.16
+    restart: unless-stopped
+    volumes: ["uptime_data:/app/data"]
+    ports: ["127.0.0.1:3001:3001"]
+
+volumes:
+  caddy_data: {}
+  uptime_data: {}

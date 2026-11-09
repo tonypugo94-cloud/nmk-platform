@@ -25,6 +25,8 @@ DATABASE_URL=... ONEC_ODATA_URL=http://localhost:8091/base/odata/standard.odata 
 | `packages/db` | Применение миграций |
 | `services/*` | Сервисы, по одному на модуль |
 | `infra` | docker compose, Dockerfile, выдача паролей сервисным ролям |
-| `docs` | Архитектура и правила добавления модулей |
+| `apps/web-office` | Интерфейс (PWA, React): офис, участки, склад, бригады, собственник |
+| `packages/bots` | Транспорт MAX и VK, шлюз мессенджера |
+| `docs` | Архитектура, матрица отказов, развёртывание, ТЗ для специалиста 1С |
 
 Подробно — в `docs/architecture.md`.

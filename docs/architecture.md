@@ -17,22 +17,28 @@
 
 ## Модули
 
-| Модуль | Сервис | Схема | Миграции | Статус |
+| Модуль (key) | Сервис | Схема | Миграция | Что делает |
 | --- | --- | --- | --- | --- |
-| Ядро, шина | — | `core`, `bus` | 0001–0099 | готово |
-| Заказы из 1С | `accounting-sync` | `integration` | 0100–0199 | бэкенд готов, интерфейс — следующий шаг |
-| Обслуживание | `housekeeping` | — | 0004 | готово |
-| QR и участки | `tracking` | `tracking` | 0200 | план |
-| Распределение работ | `workload` | `workload` | 0300 | план |
-| Склад и погрузка | `warehouse` | `warehouse` | 0400 | план |
-| Заявки на поставку | `procurement` | `procurement` | 0500 | план |
-| Планировщик | `planning`, `weather` | `planning`, `weather` | 0600 | план |
-| Боты | `messaging`, `bot-max`, `bot-vk` | `messaging` | 0700 | план |
-| Приложение бригады | `crew` | `crew` | 0800 | план |
-| Автопланировщик | `autoplanner` | `autoplan` | 0900 | план |
-| Сдельная оплата | `piecework` | `piecework` | 1000 | план |
-| Панель собственника | `analytics` | `analytics` | 1100 | план |
-| Запись в 1С (за флагом) | `accounting-writeback` | `integration` | 1200 | план |
+| ядро, шина | — | `core`, `bus` | 0001–0005 | роли, реестр модулей, справочники, заказы, журнал заказа, события |
+| `orders` | `accounting-sync` | `integration` | 0100 | заказы, клиенты, номенклатура, остатки из 1С (только чтение) |
+| — | `housekeeping` | — | 0004 | чистка шины, обезличивание ПДн по сроку |
+| `tracking` | `tracking` | `tracking` | 0200 | грузовые места (стела / паллет-комплект), QR, сканы участков |
+| `workload` | `workload` | `workload` | 0300 | маршрут изделия, очереди по запасу дней, загрузка, риски |
+| `warehouse` | `warehouse` | `warehouse` | 0400 | места хранения, глубина, погрузка «N из N» |
+| `procurement` | `procurement` | `procurement` | 0500 | потребность, черновики заявок, утверждение, опоздания |
+| `planning`, `weather` | `planning`, `weather` | `planning`, `weather` | 0600 | слоты «направление × день», тоннаж, резерв, подтверждения, накладные; прогноз |
+| `messaging` | `messaging`, `bot-max`, `bot-vk` | `messaging` | 0700 | подключение по QR, статусы, приглашение с доказательством, подтверждение даты, напоминания |
+| `crew` | — (только БД) | `crew` | 0800 | маршрут бригады, фото с геоточкой, «Установлено», «Проблема» |
+| `autoplanner` | `autoplanner` | `autoplan` | 0900 | машины на ближайшие дни, запрос подтверждений |
+| `piecework` | `piecework` | `piecework` | 1000 | операции и ставки, отметки по QR, п. м. из размеров, ведомость |
+| `analytics` | `analytics` | `analytics` | 1100 | сводка собственника, риск неустоек в рублях, недельная сводка в MAX |
+| `accounting_writeback` | `accounting-writeback` | — | 1200 | запись стадий в 1С (по умолчанию выключено) |
+
+Модули включает администратор на экране «Модули». Выключенный модуль не мешает остальным: его сервис может работать, но его пункты меню скрыты, а для `autoplanner` и `accounting_writeback` выключение останавливает и действия.
+
+### Что работает без сервиса
+
+Всё, что делает человек с телефона или из офиса, — это функции БД, вызываемые напрямую через API Supabase: сканы участков, размещение и погрузка, планирование и печать накладных, отметки бригады и сделки. Поэтому остановка любого прикладного сервиса не останавливает работу людей — сервисы обрабатывают только асинхронное (события, расписания, внешние системы).
 
 ## Как добавить новый модуль (в том числе не из исходного плана)
 
@@ -45,15 +51,41 @@
 
 Ядро при этом не меняется.
 
-## События ядра и модуля заказов
+## Каталог событий
 
-`order.upserted`, `order.stage_changed`, `order.ready_for_install`, `order.closed`, `order.cemetery_unmatched`, `customer.anonymized`, `accounting.sync_completed`, `accounting.sync_failed`, `accounting.stock_changed`.
+`packages/shared/src/events/*.ts` — у каждого модуля свой файл с Zod-схемами.
 
-## Матрица отказов (заполняется по мере модулей)
+| Модуль | События |
+| --- | --- |
+| ядро, заказы | `order.upserted`, `order.stage_changed`, `order.ready_for_install`, `order.closed`, `order.cemetery_unmatched`, `customer.anonymized`, `accounting.sync_completed`, `accounting.sync_failed`, `accounting.stock_changed` |
+| tracking | `tracking.cargo_created`, `tracking.scanned` |
+| workload | `workload.risk_detected` |
+| warehouse | `storage.placed`, `load.item_scanned`, `load.completed`, `load.incomplete` |
+| procurement | `procurement.draft_created`, `procurement.approved`, `supply.late` |
+| planning | `installation.planned`, `installation.rescheduled`, `installation.cancelled`, `confirmation.requested`, `waybill.printed` |
+| weather | `weather.updated`, `weather.failed` |
+| messaging | `messaging.inbound`, `confirmation.answered`, `callback.requested`, `viewing.invite_requested`, `message.sent/delivered/read/failed` |
+| crew | `photo.uploaded`, `installation.completed`, `installation.problem` |
+| piecework | `piecework.recorded`, `piecework.statement_ready` |
+| analytics | `analytics.digest_ready` |
+
+## Матрица отказов
 
 | Что упало | Что работает | Поведение | Тест |
 | --- | --- | --- | --- |
-| 1С / `accounting-sync` | всё | последние данные, `integration.api_sync_status` для баннера, одно событие `accounting.sync_failed`, предохранитель не дёргает 1С | `services/accounting-sync/test` |
-| Один заказ в 1С с битыми данными | остальные заказы | ошибка в `sync_state`, повтор в следующий запуск | там же |
+| 1С / `accounting-sync` | всё | последние данные, баннер «Нет связи с 1С, данные на ЧЧ:ММ», одно событие об отказе, предохранитель не дёргает 1С; после восстановления — догон по `DataVersion` | `services/accounting-sync/test` |
+| Один битый заказ в 1С | остальные заказы | ошибка в `integration.sync_state`, повтор в следующий запуск | там же |
+| `tracking` | сканы участков (функция БД) | грузовые места новых заказов создадутся после старта | `services/tracking/test` |
+| `workload` | очереди (представления БД) | риски не рассылаются, пока сервис лежит | `services/workload/test` |
+| `warehouse` | размещение и сканы погрузки | погрузка по новой накладной создастся после старта | `services/warehouse/test` |
+| `procurement` | всё | черновики не пересчитываются | `services/procurement/test` |
+| `planning` | ручное планирование, печать накладных | ответы клиентов копятся и применятся после старта | `services/planning/test` |
+| `weather` / МетеоПлан | всё | планировщик без прогноза, старый прогноз остаётся | `services/weather/test` |
+| `messaging` | планирование, производство | события ждут в очереди | `services/messaging/test` |
+| `bot-max` / API MAX | VK и всё остальное | сообщения MAX ждут с повторами; через 30 минут — задача менеджеру «позвоните» | там же |
+| `autoplanner` | ручное планирование | автоплан не обновляется | `services/autoplanner/test` |
+| `piecework`, `analytics` | всё | ведомость и сводка — позже | соответствующие тесты |
+| `accounting-writeback` / 1С на запись | всё | стадии копятся в шине и досылаются | `services/accounting-writeback/test` |
 | Любой подписчик | все остальные | доставки копятся и обрабатываются после старта | `tests/service.test.ts` |
-| Обработчик падает на одном событии | остальные события | повтор с паузой, затем `dead` | `tests/bus.test.ts` |
+| Обработчик падает на событии | остальные события | повтор с паузой 5 с → 15 мин, после 8 попыток — `dead` в `bus.api_stats` | `tests/bus.test.ts` |
+| PostgreSQL | ничего | оповещение, восстановление по `docs/deploy.md`; цели RPO ≤ 15 мин, RTO ≤ 2 ч | ручная проверка раз в квартал |

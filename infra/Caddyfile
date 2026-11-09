@@ -1,0 +1,20 @@
+{$DOMAIN} {
+	encode gzip
+	handle_path /hooks/max* {
+		rewrite * /webhook
+		reverse_proxy bot-max:8080
+	}
+	handle_path /hooks/vk* {
+		rewrite * /webhook
+		reverse_proxy bot-vk:8080
+	}
+	@supabase path /rest/* /auth/* /storage/* /realtime/*
+	handle @supabase {
+		reverse_proxy kong:8000
+	}
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}
