@@ -8,3 +8,4 @@ export * from "./events/tracking.js";
 export * from "./events/workload.js";
 export * from "./events/warehouse.js";
 export * from "./events/planning.js";
+export * from "./events/procurement.js";
