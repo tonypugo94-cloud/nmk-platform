@@ -90,7 +90,7 @@ create table core.orders (
   plot              text,                        -- участок / место захоронения
   direction_id      uuid references core.directions(id),
   stage_code        text not null default 'accepted' references core.stages(code),
-  stage_source      text not null default 'onec' check (stage_source in ('onec','manual','tracking')),
+  stage_source      text not null default 'onec' check (stage_source in ('onec','manual','tracking','crew')),
   status            text not null default 'open' check (status in ('open','closed')),
   amount            numeric(12,2),
   notes             text,

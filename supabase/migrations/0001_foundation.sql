@@ -117,7 +117,7 @@ $$;
 -- Состояние модулей для интерфейса: «работает / нет связи N минут».
 create or replace view core.api_modules with (security_invoker = true) as
 select key, title, description, version, enabled, depends_on, roles, menu, heartbeat_at,
-       (heartbeat_at is not null and heartbeat_at > now() - interval '2 minutes') as alive
+       (service = 'db' or (heartbeat_at is not null and heartbeat_at > now() - interval '2 minutes')) as alive
 from core.app_modules;
 
 -- ─── Настройки ─────────────────────────────────────────────────────────────────

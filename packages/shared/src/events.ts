@@ -11,3 +11,4 @@ export * from "./events/planning.js";
 export * from "./events/procurement.js";
 export * from "./events/messaging.js";
 export * from "./events/weather.js";
+export * from "./events/crew.js";
