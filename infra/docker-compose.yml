@@ -1,0 +1,34 @@
+# Прикладные сервисы НМК. База и Supabase поднимаются официальным docker-compose
+# self-hosted Supabase (infra/supabase/, см. docs/deploy.md) и подключаются через include.
+# Каждый сервис — отдельный контейнер со своей ролью в БД: падение одного не трогает остальные.
+
+include:
+  - path: ./supabase/docker-compose.yml
+
+x-service: &service
+  build: { context: .., dockerfile: infra/Dockerfile.service }
+  restart: unless-stopped
+  depends_on: { db: { condition: service_healthy } }
+  deploy: { resources: { limits: { cpus: "0.5", memory: 256M } } }
+  logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+services:
+  accounting-sync:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: accounting-sync } }
+    environment:
+      DATABASE_URL: postgres://svc_accounting_sync:${SVC_ACCOUNTING_SYNC_PASSWORD}@db:5432/postgres
+      ONEC_ODATA_URL: ${ONEC_ODATA_URL}
+      ONEC_USER: ${ONEC_USER}
+      ONEC_PASSWORD: ${ONEC_PASSWORD}
+      ONEC_FIELDS: ${ONEC_FIELDS:-}
+      SYNC_EVERY_MS: ${SYNC_EVERY_MS:-120000}
+
+  # Следующие сервисы добавляются по мере этапов: planning, messaging, bot-max, bot-vk,
+  # weather, procurement, tracking, workload, warehouse, crew, autoplanner, piecework, analytics.
+
+  ops-housekeeping:
+    <<: *service
+    build: { context: .., dockerfile: infra/Dockerfile.service, args: { SERVICE: housekeeping } }
+    environment:
+      DATABASE_URL: postgres://svc_housekeeping:${SVC_HOUSEKEEPING_PASSWORD}@db:5432/postgres

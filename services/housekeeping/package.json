@@ -1,0 +1,12 @@
+{
+  "name": "@nmk/housekeeping",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@nmk/shared": "workspace:*",
+    "@nmk/accounting": "workspace:*"
+  }
+}
