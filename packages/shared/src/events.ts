@@ -5,3 +5,4 @@
 export * from "./events/registry.js";
 export * from "./events/core.js";
 export * from "./events/tracking.js";
+export * from "./events/workload.js";
