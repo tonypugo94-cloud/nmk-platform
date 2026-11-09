@@ -17,6 +17,7 @@ export class OneCEmulator {
   values = new Map<string, string>();      // Ref_Key → Description
   stock: Row[] = [];
   failing = false;
+  written: { ref: string; stage: string }[] = [];
   requests = 0;
   private server?: http.Server;
   constructor(readonly user = "obmen", readonly password = "secret") {}
@@ -109,6 +110,14 @@ export class OneCEmulator {
     const auth = Buffer.from(String(req.headers.authorization ?? "").replace("Basic ", ""), "base64").toString();
     if (auth !== `${this.user}:${this.password}`) return send(401, { error: "unauthorized" });
     if (this.failing) return send(500, { error: "1С недоступна" });
+    if (req.method === "POST" && (req.url ?? "").endsWith("/hs/nmk/stage")) {
+      let raw = ""; req.on("data", (c) => (raw += c)); req.on("end", () => {
+        const { ref, stage } = JSON.parse(raw);
+        if (!this.orders.has(ref)) return send(404, { error: "нет заказа" });
+        this.update(ref, { stage }); this.written.push({ ref, stage }); send(200, { ok: true });
+      });
+      return;
+    }
     const url = decodeURIComponent((req.url ?? "").split("?")[0]!.replace(/^.*standard\.odata\//, ""));
     const byKey = url.match(/^([^(/]+)\(guid'([0-9a-f-]+)'\)$/);
     const pick = (map: Map<string, Row>) => {

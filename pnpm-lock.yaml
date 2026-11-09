@@ -102,6 +102,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
+  services/accounting-writeback:
+    dependencies:
+      '@nmk/accounting':
+        specifier: workspace:*
+        version: link:../../packages/accounting
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
   services/analytics:
     dependencies:
       '@nmk/shared':
