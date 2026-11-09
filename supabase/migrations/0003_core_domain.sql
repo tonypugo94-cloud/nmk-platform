@@ -374,6 +374,16 @@ begin
   end loop;
 end $$;
 
+-- Сервисам — чтение справочников и заказов (права на конкретные таблицы выдаются каждому сервису отдельно).
+do $$
+declare t text;
+begin
+  if not exists (select 1 from pg_roles where rolname = 'nmk_services') then create role nmk_services nologin; end if;
+  foreach t in array array['directions','cemeteries','vehicles','crews','stages','catalog_items','customers','orders','order_items','order_events'] loop
+    execute format('create policy %1$s_services on core.%1$s for select to nmk_services using (true)', t);
+  end loop;
+end $$;
+
 create policy customers_read on core.customers for select to authenticated using (core.is_staff());
 create policy orders_read on core.orders for select to authenticated
   using (core.is_staff() or core.has_any_role(array['station','storekeeper','crew']));

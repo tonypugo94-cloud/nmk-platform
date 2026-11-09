@@ -102,6 +102,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
+  services/planning:
+    dependencies:
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
   services/procurement:
     dependencies:
       '@nmk/shared':
@@ -115,6 +121,12 @@ importers:
         version: link:../../packages/shared
 
   services/warehouse:
+    dependencies:
+      '@nmk/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  services/weather:
     dependencies:
       '@nmk/shared':
         specifier: workspace:*

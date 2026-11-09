@@ -9,7 +9,7 @@ export async function serviceRole(admin: pg.Pool, name: string) {
 }
 /** Чистит прикладные данные между тестами, не трогая справочники-сиды. */
 export async function cleanData(admin: pg.Pool) {
-  await admin.query(`truncate bus.deliveries, bus.events, bus.subscriptions, core.order_events, core.order_items, core.orders, core.customers, core.catalog_items, core.cemeteries, core.directions cascade`);
+  await admin.query(`truncate bus.deliveries, bus.events, bus.subscriptions, core.order_events, core.order_items, core.orders, core.customers, core.catalog_items, core.cemeteries, core.directions, core.vehicles, core.crews cascade`);
 }
 
 /** Заказ через ту же функцию, что использует обмен с 1С. */

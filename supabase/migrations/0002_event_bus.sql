@@ -197,9 +197,13 @@ begin
   if p_role !~ '^svc_[a-z0-9_]+$' then
     raise exception 'service role name must match svc_[a-z0-9_]+: %', p_role;
   end if;
+  if not exists (select 1 from pg_roles where rolname = 'nmk_services') then
+    create role nmk_services nologin;  -- общая группа сервисов: для политик RLS «сервисам можно читать»
+  end if;
   if not exists (select 1 from pg_roles where rolname = p_role) then
     execute format('create role %I nologin', p_role);
   end if;
+  execute format('grant nmk_services to %I', p_role);
   execute format('grant usage on schema core, bus to %I', p_role);
   execute format('grant execute on function core.register_module(jsonb), core.module_heartbeat(text), core.module_enabled(text) to %I', p_role);
   execute format('grant execute on function bus.publish(text, text, jsonb, text), bus.subscribe(text, text[]), bus.claim(text, int, int), bus.ack(bigint), bus.nack(bigint, text, int) to %I', p_role);
