@@ -293,6 +293,10 @@
 
 ## 13. Разработка: быстрый старт
 
+**Запустить всю систему с интерфейсом на своём компьютере** (Supabase локально, эмулятор 1С, все сервисы): пошагово в [docs/local-run.md](docs/local-run.md). Коротко: `npx supabase@2.122.1 start` → `pnpm dev` → `pnpm --filter @nmk/web-office dev`.
+
+Ниже — запуск автотестов на отдельном PostgreSQL.
+
 ```bash
 pnpm install
 # локальный PostgreSQL 16 на :54329 (или свой: DATABASE_URL=...)

@@ -4,6 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
+    "dev": "tsx scripts/dev.ts",
     "db:migrate": "tsx packages/db/src/migrate.ts",
     "db:reset": "tsx packages/db/src/migrate.ts --reset",
     "test": "vitest run",
