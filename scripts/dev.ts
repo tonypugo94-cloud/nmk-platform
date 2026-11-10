@@ -24,7 +24,7 @@ const ALL = [
   "procurement", "planning", "weather", "messaging", "bot-max", "bot-vk", "autoplanner", "piecework", "analytics",
 ];
 const needs: Record<string, string[]> = {
-  weather: ["METEOPLAN_URL"],
+  weather: ["METEOPLAN_URL", "METEOPLAN_KEY", "METEOPLAN_EMAIL", "METEOPLAN_PASSWORD"],
   "bot-max": ["MAX_TOKEN", "MAX_WEBHOOK_SECRET"],
   "bot-vk": ["VK_TOKEN", "VK_SECRET", "VK_CONFIRMATION"],
 };

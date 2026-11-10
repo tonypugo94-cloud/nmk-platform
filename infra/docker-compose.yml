@@ -68,7 +68,9 @@ services:
     environment:
       DATABASE_URL: postgres://svc_weather:${SVC_WEATHER_PASSWORD}@db:5432/postgres
       METEOPLAN_URL: ${METEOPLAN_URL}
-      METEOPLAN_TOKEN: ${METEOPLAN_TOKEN:-}
+      METEOPLAN_KEY: ${METEOPLAN_KEY}
+      METEOPLAN_EMAIL: ${METEOPLAN_EMAIL}
+      METEOPLAN_PASSWORD: ${METEOPLAN_PASSWORD}
 
   messaging:
     <<: *service

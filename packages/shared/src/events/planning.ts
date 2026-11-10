@@ -8,5 +8,6 @@ export const PlanningEvents = {
   installationPlanned: defineEvent("installation.planned", z.object({ orderId: uuid, date: z.string(), slotId: uuid, directionId: uuid.nullable() })),
   installationRescheduled: defineEvent("installation.rescheduled", z.object({ orderId: uuid, from: z.string(), to: z.string(), slotId: uuid })),
   installationCancelled: defineEvent("installation.cancelled", z.object({ orderId: uuid, reason: z.string() })),
+  autoplanRequested: defineEvent("autoplan.requested", z.object({ by: uuid.nullable() })),
   confirmationRequested: defineEvent("confirmation.requested", z.object({ orderId: uuid, assignmentId: uuid, date: z.string() })),
 } as const;

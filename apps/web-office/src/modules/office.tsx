@@ -6,6 +6,7 @@ import { fmtDate, fmtKg, fmtTime, slackBadge } from "../lib/format";
 import { Qr } from "../components/Qr";
 import { geo, takeAndUpload } from "../lib/photo";
 import { newId } from "../lib/supabase";
+import { useModules } from "../lib/modules";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: string, n: number) => iso(new Date(new Date(d + "T12:00:00").getTime() + n * 86_400_000));
@@ -29,7 +30,13 @@ export function PlanningPage() {
   const { data: dirs = [] } = useQuery({ queryKey: ["dirs"], queryFn: () => rows<any>(db("core").from("directions").select("*").eq("active", true).order("sort").order("name")) });
   const { data: vehicles = [] } = useQuery({ queryKey: ["vehicles"], queryFn: () => rows<any>(db("core").from("vehicles").select("*").eq("active", true).order("capacity_kg")) });
   const { data: weather = [] } = useQuery({ queryKey: ["weather", week], queryFn: () => rows<any>(db("weather").from("forecasts").select("*").gte("day", days[0]).lte("day", days[5])) });
+  const { data: modules = [] } = useModules();
+  const autoplanOn = modules.some((m) => m.key === "autoplanner" && m.enabled);
+  const { data: lastRun } = useQuery({ queryKey: ["autoplan-last"], enabled: autoplanOn, refetchInterval: 15_000,
+    queryFn: async () => (await rows<any>(db("autoplan").from("api_last_run").select("*")))[0] ?? null });
   const run = async (f: () => Promise<unknown>) => { setErr(null); try { await f(); refresh(); } catch (e) { setErr((e as Error).message); } };
+  const badWx = (w: any) => w && (w.category === "heavy_rain" || (w.precip_prob ?? 0) >= 80);
+  const triggerTitle: Record<string, string> = { daily: "ежедневная сборка", event: "дособрано по событию", manual: "собрано вручную" };
 
   const assign = (orderId: string, dirId: string | null) => run(async () => {
     const day = prompt(`Дата установки (ГГГГ-ММ-ДД)`, days[0]); if (!day) return;
@@ -56,6 +63,27 @@ export function PlanningPage() {
         </div>
       </div>
       {err && <div className="err" style={{ marginBottom: 8 }}>{err}</div>}
+      {autoplanOn && (
+        <section className="card" style={{ marginBottom: 12 }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <div>
+              <b>Автоплан</b>{" "}
+              {lastRun ? <span className="muted">
+                · {triggerTitle[lastRun.trigger] ?? lastRun.trigger} {fmtTime(lastRun.started_at)}
+                {lastRun.target_days?.length ? ` · на ${lastRun.target_days.map(dayTitle).join(", ")}` : ""}
+                {` · поставлено заказов: ${lastRun.planned}`}</span>
+                : <span className="muted">· ещё не запускался</span>}
+              {lastRun?.error && <div className="err">Ошибка: {lastRun.error}</div>}
+            </div>
+            <button onClick={() => run(async () => { await rpc("autoplan", "request_run", {}); alert("Запрос отправлен — план обновится через несколько секунд"); })}>Собрать план сейчас</button>
+          </div>
+          {lastRun?.skipped?.length > 0 && (
+            <details style={{ marginTop: 6 }}><summary>Не поставлено: {lastRun.skipped.length}</summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{lastRun.skipped.map((x: any) => <li key={x.orderId}><b>{x.number}</b> — {x.reason}</li>)}</ul>
+            </details>)}
+          <p className="sub" style={{ margin: "6px 0 0" }}>Система каждый день собирает машины на послезавтра с учётом погоды и сроков и сама просит клиентов подтвердить дату. Утром проверьте план и позвоните тем, кто не ответил.</p>
+        </section>
+      )}
       <div className="wrap"><table className="table" style={{ minWidth: 980 }}>
         <thead><tr><th>Направление</th>{days.map((d) => {
           const fri = new Date(d + "T12:00:00").getDay() === 5;
@@ -66,7 +94,8 @@ export function PlanningPage() {
             const w = weather.find((x) => x.direction_id === dir.id && x.day === d);
             return (
               <td key={d} style={{ verticalAlign: "top", minWidth: 150 }}>
-                {w && <div className={(w.precip_prob ?? 0) >= 60 ? "err" : "muted"} style={{ fontSize: 12 }}>осадки {w.precip_prob}%</div>}
+                {w && <div className={badWx(w) ? "err" : "muted"} style={{ fontSize: 12, color: !badWx(w) && (w.precip_prob ?? 0) >= 60 ? "var(--amber)" : undefined }} title={w.confidence ? `уверенность прогноза: ${w.confidence}` : undefined}>
+                  {w.summary ?? `осадки ${w.precip_prob}%`}</div>}
                 {slots.filter((s) => s.direction_id === dir.id && s.day === d).map((s) => (
                   <div key={s.id} className="card" style={{ padding: 8, marginTop: 4, borderColor: s.overload ? "var(--red)" : undefined }}>
                     <b style={{ fontSize: 13 }}>{s.vehicle}</b>

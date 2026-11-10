@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pool, serviceRole, cleanData, urlFor, makeOrder } from "../../../tests/db.js";
-import { plan, workDays, type Inputs } from "../src/algorithm.js";
-import { runAutoplan } from "../src/definition.js";
+import { badWeather, plan, workDays, type Inputs } from "../src/algorithm.js";
+import { dailyDue, mskDate, runAutoplan } from "../src/definition.js";
 
 const base: Inputs = {
   settings: { horizonDays: 5, rainSkipProb: 70, base: { lat: 56.15, lon: 44.2 } },
@@ -32,6 +32,29 @@ describe("алгоритм автоплана", () => {
     expect(p.skipped[0]!.reason).toMatch(/направление/);
   });
 
+  it("сегодня на послезавтра: один рабочий день, воскресенье и резервная пятница пропускаются", () => {
+    const one = { ...base, settings: { ...base.settings, horizonDays: 1 } };
+    expect(workDays("2026-05-13", one)).toEqual(["2026-05-13"]); // послезавтра — обычная среда
+    expect(workDays("2026-05-15", one)).toEqual(["2026-05-16"]); // послезавтра пятница-резерв → суббота
+    expect(workDays("2026-05-17", one)).toEqual(["2026-05-18"]); // воскресенье → понедельник
+  });
+
+  it("погода из МетеоПлана: сильный дождь и порог вероятности; снег — по настройке", () => {
+    const s = { ...base.settings, rainSkipProb: 80, skipCategories: ["heavy_rain"], skipSnow: false };
+    expect(badWeather({ directionId: "K", day: MON, precipProb: 99, category: "heavy_rain" }, s)).toBe("сильные осадки 99%");
+    expect(badWeather({ directionId: "K", day: MON, precipProb: 65, category: "light_rain" }, s)).toBeNull();
+    expect(badWeather({ directionId: "K", day: MON, precipProb: 85, category: "light_rain" }, s)).toBe("осадки 85%");
+    expect(badWeather({ directionId: "K", day: MON, precipProb: 10, category: "clear", isSnow: true }, s)).toBeNull();
+    expect(badWeather({ directionId: "K", day: MON, precipProb: 10, category: "clear", isSnow: true }, { ...s, skipSnow: true })).toBe("снег");
+  });
+
+  it("непогода на целевой день — заказ ждёт следующего запуска, причина видна менеджеру", () => {
+    const p = plan({ ...base, settings: { ...base.settings, horizonDays: 1, rainSkipProb: 80, skipCategories: ["heavy_rain"] },
+      orders: [o("a", "K", 300, "2026-05-20")], weather: [{ directionId: "K", day: MON, precipProb: 99, category: "heavy_rain" }] }, MON);
+    expect(p.assignments).toHaveLength(0);
+    expect(p.skipped[0]!.reason).toBe("Непогода — 2026-05-11: сильные осадки 99%");
+  });
+
   it("порядок объезда — ближайший следующий от базы", () => {
     const p = plan({ ...base, orders: [o("far", "K", 100, "2026-05-12", 56.5, 44.2), o("near", "K", 100, "2026-05-13", 56.16, 44.2)] }, MON);
     expect(p.sequences[0]!.orderIds).toEqual(["near", "far"]);
@@ -46,6 +69,7 @@ describe("автоплан в базе", () => {
   beforeEach(async () => {
     await cleanData(admin);
     await admin.query(`select core.register_module('{"key":"autoplanner","title":"Автоплан"}')`);
+    await admin.query(`truncate autoplan.runs`);
   });
 
   it("выключен — ничего не делает; включён — ставит машины и просит клиентов подтвердить ближайшие", async () => {
@@ -61,5 +85,17 @@ describe("автоплан в базе", () => {
     expect(a.confirm_status).toBe("sent");
     expect((await admin.query(`select count(*)::int n from bus.events where type = 'confirmation.requested'`)).rows[0].n).toBe(1);
     expect((await runAutoplan(svc))!.assignments).toHaveLength(0); // повторный запуск ничего не дублирует
+    const { rows: [slot] } = await admin.query(`select day::text from planning.api_slots`);
+    expect(slot.day >= mskDate(new Date(Date.now() + 2 * 86_400_000))).toBe(true); // не раньше послезавтра
+  });
+
+  it("ежедневный запуск — один раз в день, не раньше времени из настроек", async () => {
+    await admin.query(`update core.app_modules set enabled = true where key = 'autoplanner'`);
+    await admin.query(`update core.settings set value = value || '{"runAt": "16:30"}' where key = 'autoplan'`);
+    const at = (hhmm: string) => new Date(`${mskDate()}T${hhmm}:00+03:00`);
+    expect(await dailyDue(svc, at("15:00"))).toBe(false);
+    expect(await dailyDue(svc, at("16:45"))).toBe(true);
+    await runAutoplan(svc, { trigger: "daily" });
+    expect(await dailyDue(svc, at("17:00"))).toBe(false);
   });
 });
